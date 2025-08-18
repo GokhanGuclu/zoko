@@ -4,13 +4,15 @@ import { commands } from './commands';
 import { deployCommands } from './lib/deployCommands';
 import { createTicketChannel, extractSupportRoleIdFromTopic } from './lib/tickets';
 import { findFaq } from './lib/faq';
-import { buildEmbed, formatFooter } from './lib/ui';
+import { buildEmbed, formatFooter, setBrandAssets } from './lib/ui';
 import { ensureSchema } from './lib/db';
 import { ensureLogChannel, exportChannelTranscript, postClosureSummary } from './lib/logs';
 import { addFlowEvent, getAndClearFlowEvents } from './lib/flow';
 import { setWarnLogChannel, setWarnAllowedRoles, clearAllWarns, deleteWarn, getWarnById, getWarnSettings } from './lib/warn';
 import { buildRegistrationModal, getRegistrationSettings, listModalFields, saveSubmission, setRegistrationChannel, setRegisteredRole, addModalField, deleteModalField, setNewMemberRole, approveSubmission, rejectSubmission } from './lib/registration';
 import { applyNewMemberRolePermissions } from './lib/permissions';
+import { getWordle, guessWord, renderBoard, toContextId, normalizeTR } from './lib/wordle';
+import { renderBoardPng } from './lib/wordleImage';
 
 type CommandMap = Collection<string, (interaction: Interaction) => Promise<void>>;
 
@@ -30,6 +32,14 @@ for (const cmd of commands) {
 client.once(Events.ClientReady, async (c) => {
 	console.log(`🤖 Giriş yapıldı: ${c.user.tag}`);
 	try {
+		// Marka varlıklarını bot bilgisiyle güncelle (tüm embedlerde otomatik kullanılacak)
+		try {
+			setBrandAssets({
+				name: c.user.username || 'ZoKo',
+				iconUrl: c.user.displayAvatarURL({ size: 256 }),
+				url: 'https://discord.com',
+			});
+		} catch {}
 		await ensureSchema();
 		await deployCommands();
 		console.log(`📝 Slash komutları otomatik dağıtıldı (${commands.length})`);
@@ -741,6 +751,36 @@ client.on(Events.InteractionCreate, async (interaction) => {
 	}
 });
 
-client.login(appConfig.discordToken);
+// Wordle: mesajları otomatik tahmin olarak alma
+client.on(Events.MessageCreate as any, async (message: any) => {
+	try {
+		if (!message || message.author?.bot) return;
+		const channelId = message.channel?.id;
+		if (!channelId) return;
+		const ctx = toContextId(message.guild?.id ?? null, channelId);
+		const state = getWordle(ctx);
+		if (!state || state.finished) return;
+		const contentRaw = String(message.content || '').trim();
+		if (!contentRaw) return;
+		const content = normalizeTR(contentRaw);
+		// Sadece hedef uzunlukta ve harflerden oluşan girişleri kabul et
+		const trLetters = /^[a-zçğıöşü]+$/i;
+		if (content.length !== state.length || !trLetters.test(content)) return;
+		const { state: updated } = guessWord(ctx, content);
+		if (!updated) return;
+		const img = await renderBoardPng(updated);
+		const embed = buildEmbed({
+			title: `Wordle-TR • ${updated.length} harf • ${updated.maxAttempts} hak` + (updated.finished ? ' • Oyun Bitti' : ''),
+			description: updated.finished ? (updated.success ? '🎉 Tebrikler!' : `❌ Bitti. Doğru kelime: ${updated.target.toUpperCase()}`) : undefined,
+			footerText: formatFooter(message.guild?.name ?? ''),
+			timestamp: true,
+			imageUrl: `attachment://${img.fileName}`,
+		});
+		await message.channel.send({ embeds: [embed], files: [{ attachment: img.buffer, name: img.fileName }] });
+	} catch (e) {
+		console.error('Wordle mesaj işleme hatası:', e);
+	}
+});
 
+client.login(appConfig.discordToken);
 

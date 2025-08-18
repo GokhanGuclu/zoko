@@ -12,7 +12,7 @@ const data = new SlashCommandBuilder()
 
 async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
 	const name = interaction.options.getString('name');
-	const who = name || interaction.user.displayName || interaction.user.username;
+	const who = name || interaction.user.globalName || interaction.user.username;
 	await interaction.reply(`👋 Merhaba, ${who}!`);
 }
 

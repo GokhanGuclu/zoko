@@ -15,6 +15,11 @@ import uyariYonetim from './uyari-yonetim';
 import uyariVer from './uyari-ver';
 import uyariSil from './uyari-sil';
 import uyariListe from './uyari-liste';
+import profil from './profil';
+import avatar from './avatar';
+import sunucuBilgi from './sunucu-bilgi';
+import askOlcer from './ask-olcer';
+import wordle from './wordle';
 
 export const commands = [
     ping,
@@ -34,6 +39,11 @@ export const commands = [
     uyariVer,
     uyariSil,
     uyariListe,
+    profil,
+    avatar,
+    sunucuBilgi,
+    askOlcer,
+    wordle,
 ];
 
 export type Command = typeof commands[number];
