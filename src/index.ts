@@ -10,9 +10,11 @@ import { ensureLogChannel, exportChannelTranscript, postClosureSummary } from '.
 import { addFlowEvent, getAndClearFlowEvents } from './lib/flow';
 import { setWarnLogChannel, setWarnAllowedRoles, clearAllWarns, deleteWarn, getWarnById, getWarnSettings } from './lib/warn';
 import { buildRegistrationModal, getRegistrationSettings, listModalFields, saveSubmission, setRegistrationChannel, setRegisteredRole, addModalField, deleteModalField, setNewMemberRole, approveSubmission, rejectSubmission } from './lib/registration';
+import { getLevelSettings, resetAllLevels, setLevelAnnounceChannel, setLevelEnabled } from './lib/levels';
 import { applyNewMemberRolePermissions } from './lib/permissions';
 import { getWordle, guessWord, renderBoard, toContextId, normalizeTR } from './lib/wordle';
 import { renderBoardPng } from './lib/wordleImage';
+import { awardMessageXp } from './lib/levels';
 
 type CommandMap = Collection<string, (interaction: Interaction) => Promise<void>>;
 
@@ -459,6 +461,40 @@ client.on(Events.InteractionCreate, async (interaction) => {
 		}
 	}
 
+	// Seviye yönetimi butonları
+	if (interaction.isButton() && interaction.customId.startsWith('lvladmin:')) {
+		if (!interaction.guild || !interaction.member || interaction.user.bot) return;
+		const action = interaction.customId.split(':')[1];
+		if (action === 'toggle') {
+			const s = await getLevelSettings(interaction.guild.id);
+			await setLevelEnabled(interaction.guild.id, !s.enabled);
+			await interaction.reply({ content: `Seviye sistemi ${!s.enabled ? 'açıldı' : 'kapatıldı'}.`, ephemeral: true });
+			return;
+		}
+		if (action === 'setChannel') {
+			const channelSelect = new ChannelSelectMenuBuilder()
+				.setCustomId('lvladmin:setChannel:select')
+				.setPlaceholder('Seviye mesajlarının gönderileceği kanalı seçin (boş bırakmak için iptal edin)');
+			const row = new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(channelSelect);
+			await interaction.reply({ content: 'Seviye kanalını seçin:', components: [row], ephemeral: true });
+			return;
+		}
+		if (action === 'resetAll') {
+			const affected = await resetAllLevels(interaction.guild.id);
+			await interaction.reply({ content: `Tüm seviyeler sıfırlandı. Etkilenen kayıt: ${affected}`, ephemeral: true });
+			return;
+		}
+	}
+
+	// Seviye kanalı seçimi
+	if (interaction.isChannelSelectMenu && interaction.isChannelSelectMenu() && interaction.customId === 'lvladmin:setChannel:select') {
+		if (!interaction.guild || interaction.user.bot) return;
+		const channelId = interaction.values[0];
+		await setLevelAnnounceChannel(interaction.guild.id, channelId);
+		await interaction.reply({ content: `Seviye bildirim kanalı ayarlandı: <#${channelId}>`, ephemeral: true });
+		return;
+	}
+
 	// Uyarı yönetimi: butonlar
 	if (interaction.isButton() && interaction.customId.startsWith('warnadmin:')) {
 		if (!interaction.guild || !interaction.member || interaction.user.bot) return;
@@ -757,10 +793,28 @@ client.on(Events.MessageCreate as any, async (message: any) => {
 		if (!message || message.author?.bot) return;
 		const channelId = message.channel?.id;
 		if (!channelId) return;
+		const contentRaw = String(message.content || '').trim();
+
+		// --- Seviye: mesajdan XP kazanımı ---
+		if (message.guild) {
+			try {
+				const settings = await getLevelSettings(message.guild.id);
+				const result = await awardMessageXp(message.guild.id, message.author.id, contentRaw, settings);
+				if (result.awarded && result.levelUp && !result.silent) {
+					// Duyuru kanalını seç; yoksa konuşulan kanala gönder
+					const channelToAnnounce = settings.announceChannelId
+						? (await message.guild.channels.fetch(settings.announceChannelId).catch(() => null))
+						: message.channel;
+					const targetChannel = (channelToAnnounce && 'send' in channelToAnnounce) ? channelToAnnounce : message.channel;
+					await (targetChannel as any).send({ content: `🎉 Tebrikler <@${message.author.id}>! Seviye ${result.level} oldun.`, allowedMentions: { users: [message.author.id] } });
+				}
+			} catch {}
+		}
+
+		// --- Wordle: mesajları otomatik tahmin olarak alma ---
 		const ctx = toContextId(message.guild?.id ?? null, channelId);
 		const state = getWordle(ctx);
 		if (!state || state.finished) return;
-		const contentRaw = String(message.content || '').trim();
 		if (!contentRaw) return;
 		const content = normalizeTR(contentRaw);
 		// Sadece hedef uzunlukta ve harflerden oluşan girişleri kabul et

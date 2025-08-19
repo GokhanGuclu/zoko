@@ -168,6 +168,33 @@ export async function ensureSchema(): Promise<void> {
 			await p.execute('ALTER TABLE warns ADD COLUMN image_url TEXT NULL');
 		}
 	} catch {}
+
+	// Level sistemi tabloları
+	await p.execute(`
+		CREATE TABLE IF NOT EXISTS levels_settings (
+			guild_id VARCHAR(32) PRIMARY KEY,
+			enabled TINYINT(1) NOT NULL DEFAULT 0,
+			announce_channel_id VARCHAR(32) NULL,
+			cooldown_sec INT NOT NULL DEFAULT 60,
+			min_chars INT NOT NULL DEFAULT 60,
+			min_words INT NOT NULL DEFAULT 5,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+	`);
+
+	await p.execute(`
+		CREATE TABLE IF NOT EXISTS levels_users (
+			guild_id VARCHAR(32) NOT NULL,
+			user_id VARCHAR(32) NOT NULL,
+			xp_total BIGINT NOT NULL DEFAULT 0,
+			level INT NOT NULL DEFAULT 0,
+			last_xp_at TIMESTAMP NULL,
+			PRIMARY KEY (guild_id, user_id),
+			INDEX idx_guild_xp (guild_id, xp_total),
+			INDEX idx_guild_level (guild_id, level)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+	`);
 }
 
 

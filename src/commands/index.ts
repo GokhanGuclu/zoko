@@ -20,6 +20,10 @@ import avatar from './avatar';
 import sunucuBilgi from './sunucu-bilgi';
 import askOlcer from './ask-olcer';
 import wordle from './wordle';
+import botBilgi from './bot-bilgi';
+import seviyeYonetim from './seviye-yonetim';
+import seviye from './seviye';
+import seviyeLiderlik from './seviye-liderlik';
 
 export const commands = [
     ping,
@@ -44,6 +48,10 @@ export const commands = [
     sunucuBilgi,
     askOlcer,
     wordle,
+    botBilgi,
+    seviyeYonetim,
+    seviye,
+    seviyeLiderlik,
 ];
 
 export type Command = typeof commands[number];
