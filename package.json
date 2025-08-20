@@ -1,6 +1,6 @@
 {
   "name": "ZoKo",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "private": true,
   "description": "Basit TypeScript + discord.js v14 Discord botu",
   "license": "MIT",
@@ -9,7 +9,13 @@
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
-    "deploy:commands": "ts-node src/register-commands.ts"
+    "deploy:commands": "ts-node src/register-commands.ts",
+    "release": "standard-version",
+    "release:patch": "standard-version --release-as patch",
+    "release:minor": "standard-version --release-as minor",
+    "release:major": "standard-version --release-as major",
+    "release:alpha": "standard-version --prerelease alpha",
+    "postrelease": "git push --follow-tags origin main"
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.53",
