@@ -1,6 +1,6 @@
 {
   "name": "zoko-discord-bot",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Basit TypeScript + discord.js v14 Discord botu",
   "license": "MIT",
@@ -30,4 +30,3 @@
     "typescript": "^5.5.4"
   }
 }
-
