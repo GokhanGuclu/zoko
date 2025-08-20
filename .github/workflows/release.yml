@@ -14,10 +14,34 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Extract latest changelog section for tag
+        id: changelog
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          echo "Preparing release notes for version ${TAG}"
+          # Extract the section starting at the header for this version until the next version header
+          awk -v ver="$TAG" '
+            $0 ~ "^## "ver" " {print; flag=1; next}
+            flag && /^## / {flag=0}
+            flag {print}
+          ' CHANGELOG.md > RELEASE_BODY.md || true
+          if [ ! -s RELEASE_BODY.md ]; then
+            # Fallback: try matching ### style headings
+            awk -v ver="$TAG" '
+              $0 ~ "^### "ver" " {print; flag=1; next}
+              flag && /^### / {flag=0}
+              flag {print}
+            ' CHANGELOG.md > RELEASE_BODY.md || true
+          fi
+          if [ ! -s RELEASE_BODY.md ]; then
+            echo "Changelog section for ${TAG} not found. Using placeholder body." > RELEASE_BODY.md
+          fi
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          generate_release_notes: false
+          body_path: RELEASE_BODY.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
