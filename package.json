@@ -12,16 +12,16 @@
     "deploy:commands": "ts-node src/register-commands.ts"
   },
   "dependencies": {
+    "@napi-rs/canvas": "^0.1.53",
     "discord.js": "^14.15.3",
     "dotenv": "^16.4.5",
-    "mysql2": "^3.11.0",
-    "@napi-rs/canvas": "^0.1.53"
+    "mysql2": "^3.11.0"
   },
   "devDependencies": {
     "@types/node": "^20.14.11",
+    "standard-version": "^9.5.0",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.5.4"
   }
 }
-

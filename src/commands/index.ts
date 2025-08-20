@@ -24,6 +24,13 @@ import botBilgi from './bot-bilgi';
 import seviyeYonetim from './seviye-yonetim';
 import seviye from './seviye';
 import seviyeLiderlik from './seviye-liderlik';
+import yardim from './yardim';
+import mute from './mute';
+import unmute from './unmute';
+import kick from './kick';
+import ban from './ban';
+import clear from './clear';
+import blackjack from './blackjack';
 
 export const commands = [
     ping,
@@ -52,6 +59,13 @@ export const commands = [
     seviyeYonetim,
     seviye,
     seviyeLiderlik,
+    yardim,
+    mute,
+    unmute,
+    kick,
+    ban,
+    clear,
+    blackjack,
 ];
 
 export type Command = typeof commands[number];

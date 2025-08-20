@@ -15,12 +15,12 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 	}
 
 	const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-		new ButtonBuilder().setCustomId('warnadmin:setLogChannel').setLabel('Log Kanalını Ayarla').setStyle(ButtonStyle.Primary),
+		new ButtonBuilder().setCustomId('warnadmin:setLogChannel').setLabel('Log Kanalını Ayarla').setEmoji('📜').setStyle(ButtonStyle.Primary),
 	);
 
 	const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-		new ButtonBuilder().setCustomId('warnadmin:setRoles').setLabel('Yetkili Rolleri Ayarla').setStyle(ButtonStyle.Success),
-		new ButtonBuilder().setCustomId('warnadmin:clearAll').setLabel('Tüm Uyarıları Sil').setStyle(ButtonStyle.Danger),
+		new ButtonBuilder().setCustomId('warnadmin:setRoles').setLabel('Yetkili Rolleri Ayarla').setEmoji('🛡️').setStyle(ButtonStyle.Success),
+		new ButtonBuilder().setCustomId('warnadmin:clearAll').setLabel('Tüm Uyarıları Sil').setEmoji('🗑️').setStyle(ButtonStyle.Danger),
 	);
 
 	const settings = await getWarnSettings(interaction.guild.id);

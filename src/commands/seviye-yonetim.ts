@@ -19,12 +19,12 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 	const status = settings.enabled ? 'Açık' : 'Kapalı';
 
 	const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-		new ButtonBuilder().setCustomId('lvladmin:toggle').setLabel(settings.enabled ? 'Seviyeyi Kapat' : 'Seviyeyi Aç').setStyle(settings.enabled ? ButtonStyle.Danger : ButtonStyle.Success),
-		new ButtonBuilder().setCustomId('lvladmin:setChannel').setLabel('Seviye Kanalını Ayarla').setStyle(ButtonStyle.Primary),
+		new ButtonBuilder().setCustomId('lvladmin:toggle').setLabel(settings.enabled ? 'Seviyeyi Kapat' : 'Seviyeyi Aç').setEmoji(settings.enabled ? '🛑' : '✅').setStyle(settings.enabled ? ButtonStyle.Danger : ButtonStyle.Success),
+		new ButtonBuilder().setCustomId('lvladmin:setChannel').setLabel('Seviye Kanalını Ayarla').setEmoji('📢').setStyle(ButtonStyle.Primary),
 	);
 
 	const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-		new ButtonBuilder().setCustomId('lvladmin:resetAll').setLabel('Tüm Seviyeleri Sıfırla').setStyle(ButtonStyle.Secondary),
+		new ButtonBuilder().setCustomId('lvladmin:resetAll').setLabel('Tüm Seviyeleri Sıfırla').setEmoji('♻️').setStyle(ButtonStyle.Secondary),
 	);
 
 	const embed = buildEmbed({
