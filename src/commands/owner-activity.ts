@@ -1,4 +1,4 @@
-import { ActivityType, ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.js';
+import { ActivityType, ChatInputCommandInteraction, SlashCommandBuilder, PresenceStatusData } from 'discord.js';
 import { config as appConfig } from '../config';
 
 const STATUS_CHOICES = [
@@ -107,9 +107,11 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
             activity = { type: ActivityType.Competing, name };
         }
 
+        const currentStatus = interaction.client.user?.presence?.status;
+        const normalizedStatus = (status ?? (currentStatus === 'offline' ? 'invisible' : currentStatus) ?? 'online') as PresenceStatusData;
         await interaction.client.user?.setPresence({
             activities: activity ? [activity] : [],
-            status: status ?? interaction.client.user?.presence?.status ?? 'online',
+            status: normalizedStatus,
         });
         await interaction.reply({ content: 'Etkinlik güncellendi.', ephemeral: true });
         return;
@@ -117,9 +119,11 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
     if (sub === 'clear') {
         const status = (interaction.options.getString('status') as StatusValue | null) ?? null;
+        const currentStatus = interaction.client.user?.presence?.status;
+        const normalizedStatus = (status ?? (currentStatus === 'offline' ? 'invisible' : currentStatus) ?? 'online') as PresenceStatusData;
         await interaction.client.user?.setPresence({
             activities: [],
-            status: status ?? interaction.client.user?.presence?.status ?? 'online',
+            status: normalizedStatus,
         });
         await interaction.reply({ content: 'Etkinlikler temizlendi.', ephemeral: true });
         return;
