@@ -20,20 +20,12 @@ jobs:
         run: |
           TAG="${GITHUB_REF_NAME#v}"
           echo "Preparing release notes for version ${TAG}"
-          # Extract the section starting at the header for this version until the next version header
+          # Match headings like: ## 1.0.1, ### 1.0.1, ## [1.0.1], ### [1.0.1]
           awk -v ver="$TAG" '
-            $0 ~ "^## "ver" " {print; flag=1; next}
-            flag && /^## / {flag=0}
+            $0 ~ "^##+ \\[?" ver "\\]?" {print; flag=1; next}
+            flag && /^##+ / {flag=0}
             flag {print}
           ' CHANGELOG.md > RELEASE_BODY.md || true
-          if [ ! -s RELEASE_BODY.md ]; then
-            # Fallback: try matching ### style headings
-            awk -v ver="$TAG" '
-              $0 ~ "^### "ver" " {print; flag=1; next}
-              flag && /^### / {flag=0}
-              flag {print}
-            ' CHANGELOG.md > RELEASE_BODY.md || true
-          fi
           if [ ! -s RELEASE_BODY.md ]; then
             echo "Changelog section for ${TAG} not found. Using placeholder body." > RELEASE_BODY.md
           fi

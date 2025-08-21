@@ -20,6 +20,13 @@ const TYPE_CHOICES = [
 type StatusValue = typeof STATUS_CHOICES[number]['value'];
 type TypeValue = typeof TYPE_CHOICES[number]['value'];
 
+function sanitizePresenceStatus(input: string | null | undefined): 'online' | 'idle' | 'dnd' | 'invisible' {
+	const allowed = ['online', 'idle', 'dnd', 'invisible'] as const;
+	if (!input) return 'online';
+	const normalized = String(input);
+	return (allowed as readonly string[]).includes(normalized) ? (normalized as any) : 'online';
+}
+
 const data = new SlashCommandBuilder()
     .setName('owner-activity')
     .setDescription('Bot etkinlik/durum ayarları (Sadece bot sahibi).')
@@ -109,7 +116,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
         await interaction.client.user?.setPresence({
             activities: activity ? [activity] : [],
-            status: status ?? interaction.client.user?.presence?.status ?? 'online',
+            status: sanitizePresenceStatus(status ?? interaction.client.user?.presence?.status ?? 'online'),
         });
         await interaction.reply({ content: 'Etkinlik güncellendi.', ephemeral: true });
         return;
@@ -119,7 +126,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
         const status = (interaction.options.getString('status') as StatusValue | null) ?? null;
         await interaction.client.user?.setPresence({
             activities: [],
-            status: status ?? interaction.client.user?.presence?.status ?? 'online',
+            status: sanitizePresenceStatus(status ?? interaction.client.user?.presence?.status ?? 'online'),
         });
         await interaction.reply({ content: 'Etkinlikler temizlendi.', ephemeral: true });
         return;

@@ -46,15 +46,19 @@ export async function applyNewMemberRolePermissions(
 				await registerChannel.permissionOverwrites.set(overwrites);
 				updated++;
 			} else {
-				await ch.permissionOverwrites.edit(newMemberRoleId, {
-					ViewChannel: false,
-					SendMessages: false,
-					ReadMessageHistory: false,
-					Connect: false,
-					Speak: false,
-					SendMessagesInThreads: false,
-				});
-				updated++;
+				if ('permissionOverwrites' in ch) {
+					await (ch as any).permissionOverwrites.edit(newMemberRoleId, {
+						ViewChannel: false,
+						SendMessages: false,
+						ReadMessageHistory: false,
+						Connect: false,
+						Speak: false,
+						SendMessagesInThreads: false,
+					});
+					updated++;
+				} else {
+					skipped++;
+				}
 			}
 		} catch {
 			skipped++;
