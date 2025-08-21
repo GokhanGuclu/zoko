@@ -13,6 +13,10 @@ import { buildRegistrationModal, getRegistrationSettings, listModalFields, saveS
 import { getLevelSettings, resetAllLevels, setLevelAnnounceChannel, setLevelEnabled } from './lib/levels';
 import { applyNewMemberRolePermissions } from './lib/permissions';
 import { getWordle, guessWord, renderBoard, toContextId, normalizeTR } from './lib/wordle';
+import { getTttContextId, getTtt, startTtt, makeMove } from './lib/tictactoe';
+import { getRpsContextId, startRps, getRpsByToken, submitChoice, setRpsMessageId } from './lib/rps';
+import { renderRps } from './lib/rpsImage';
+import { renderTtt } from './lib/tictactoeImage';
 import { renderBoardPng } from './lib/wordleImage';
 import { awardMessageXp } from './lib/levels';
 
@@ -185,6 +189,167 @@ client.on(Events.InteractionCreate, async (interaction) => {
 		return;
 	}
 
+	// TKM: davet
+	if (interaction.isButton() && interaction.customId.startsWith('tkm:invite:')) {
+		if (!interaction.guild || interaction.user.bot) return;
+		const [, , choice, token, playerXId, playerOId, bestOfRaw] = interaction.customId.split(':');
+		if (interaction.user.id !== playerOId) { await interaction.reply({ content: 'Bu davet sana ait değil.', ephemeral: true }); return; }
+		if (choice === 'no') { await interaction.update({ content: 'Davet reddedildi.', components: [], embeds: [] }); return; }
+		const ctx = getRpsContextId(interaction.guild.id, interaction.channelId);
+		const state = startRps(ctx, playerXId, playerOId, (Number(bestOfRaw) as any) || 3, token);
+		const pX = await interaction.client.users.fetch(playerXId);
+		const pO = await interaction.client.users.fetch(playerOId);
+		const img = await renderRps(state, {
+			playerX: { name: pX.username, avatarUrl: pX.displayAvatarURL({ size: 128, extension: 'png' }) },
+			playerO: { name: pO.username, avatarUrl: pO.displayAvatarURL({ size: 128, extension: 'png' }) },
+		});
+		const embed = (await import('./lib/ui')).buildEmbed({ title: 'Taş • Kağıt • Makas', imageUrl: `attachment://${img.fileName}`, footerText: (await import('./lib/ui')).formatFooter(interaction.guild.name), timestamp: true });
+		const { choiceRow } = await import('./commands/tkm');
+		const openRow = choiceRow(token);
+		try {
+			await interaction.update({ content: 'Kabul edildi. Oyun başlıyor…', embeds: [], components: [] });
+		} catch {}
+		try {
+			const ch: any = interaction.channel as any;
+			if (ch && typeof ch.send === 'function') {
+				const sent = await ch.send({ embeds: [embed], files: [{ attachment: img.buffer, name: img.fileName }], components: [openRow] });
+				setRpsMessageId(token, (sent as any).id);
+			}
+		} catch {}
+		// Artık seçim butonları ana oyun mesajında
+		return;
+	}
+	// TKM: sohbetten seçim butonu açma (X/O kendi seçim menüsünü görür)
+	if (interaction.isButton() && interaction.customId.startsWith('tkm:open:')) {
+		const [, , token, role] = interaction.customId.split(':');
+		const state = getRpsByToken(token);
+		if (!state) { await interaction.reply({ content: 'Oyun bulunamadı.', ephemeral: true }); return; }
+		const isX = role === 'X';
+		const mustId = isX ? state.playerXId : state.playerOId;
+		if (interaction.user.id !== mustId) { await interaction.reply({ content: 'Bu buton sana ait değil.', ephemeral: true }); return; }
+		const { choiceRow, openChoiceRow } = await import('./commands/tkm');
+		const rowChoices = choiceRow(token);
+		await interaction.reply({ content: 'Seçimini yap:', components: [rowChoices], ephemeral: true });
+		// Açık kontrol butonlarını ilgili taraf için kapat
+		try {
+			const rowOpen = openChoiceRow(token, isX ? false : true, isX ? true : false);
+			await interaction.message.edit({ components: [rowOpen] as any });
+		} catch {}
+		return;
+	}
+
+	// TKM: seçim
+	if (interaction.isButton() && interaction.customId.startsWith('tkm:choose:')) {
+		const [, , token, pick] = interaction.customId.split(':');
+		const res = submitChoice(token, interaction.user.id, pick as any);
+		if (res.error) { await interaction.reply({ content: res.error, ephemeral: true }); return; }
+		// Sohbette görünür bilgilendirme: kim seçimini yaptı
+		try {
+			const state = res.state!;
+			const ch: any = interaction.channel as any;
+			if (ch && typeof ch.send === 'function') {
+				const sent = await ch.send({ content: `<@${interaction.user.id}> seçimini yaptı.` });
+				if (interaction.user.id === state.playerXId) state.selectMsgIdX = sent.id; else state.selectMsgIdO = sent.id;
+			}
+		} catch {}
+		// Ephemeral cevap yerine görünür mesaj kullandık
+		if (!res.resultReady) return;
+		// Sonuç hazır → public mesajı güncelle
+		const state = res.state!;
+		const pX = await interaction.client.users.fetch(state.playerXId).catch(() => null as any);
+		const pOUser = state.versusBot && state.playerOId === 'bot' ? null : await interaction.client.users.fetch(state.playerOId).catch(() => null as any);
+		const img = await renderRps(state, {
+			playerX: { name: pX?.username ?? 'X', avatarUrl: pX?.displayAvatarURL({ size: 128, extension: 'png' }) },
+			playerO: state.versusBot ? { name: 'Bot', avatarUrl: interaction.client.user?.displayAvatarURL({ size: 128, extension: 'png' }) ?? undefined } : { name: pOUser?.username ?? 'O', avatarUrl: pOUser?.displayAvatarURL({ size: 128, extension: 'png' }) },
+		});
+		const embed = (await import('./lib/ui')).buildEmbed({ title: 'Taş • Kağıt • Makas', imageUrl: `attachment://${img.fileName}`, footerText: (await import('./lib/ui')).formatFooter(interaction.guild?.name || ''), timestamp: true });
+		const { choiceRow } = await import('./commands/tkm');
+		const componentsNext = state.finished ? [] : [choiceRow(state.token)] as any;
+		try {
+			// Oyun kanalındaki ana mesajı editle
+			const ch: any = interaction.channel as any;
+			if (state.messageId && ch && ch.messages?.fetch) {
+				const msg = await ch.messages.fetch(state.messageId).catch(() => null as any);
+				if (msg) await msg.edit({ embeds: [embed], files: [{ attachment: img.buffer, name: img.fileName }], components: componentsNext });
+			}
+			// Seçim yapıldı mesajlarını temizle
+			try {
+				if (state.selectMsgIdX) await ch.messages?.delete?.(state.selectMsgIdX).catch(() => {});
+				if (state.selectMsgIdO) await ch.messages?.delete?.(state.selectMsgIdO).catch(() => {});
+				state.selectMsgIdX = null; state.selectMsgIdO = null;
+			} catch {}
+		} catch {}
+		return;
+	}
+
+	// XOX: davet akışı
+	if (interaction.isButton() && interaction.customId.startsWith('xox:invite:')) {
+		if (!interaction.guild || interaction.user.bot) return;
+		const [, , choice, playerXId, playerOId] = interaction.customId.split(':');
+		if (interaction.user.id !== playerOId) {
+			await interaction.reply({ content: 'Bu davet sana ait değil.', ephemeral: true });
+			return;
+		}
+		if (choice === 'no') {
+			await interaction.update({ content: 'Davet reddedildi.', embeds: [], components: [] });
+			return;
+		}
+		// Evet → oyunu başlat
+		const ctx = getTttContextId(interaction.guild.id, interaction.channelId);
+		const state = startTtt(ctx, playerXId, playerOId, false);
+		const pX = await interaction.client.users.fetch(playerXId);
+		const pO = await interaction.client.users.fetch(playerOId);
+		const img = await renderTtt(state, {
+			playerX: { name: pX.username, avatarUrl: pX.displayAvatarURL({ size: 128, extension: 'png' }) },
+			playerO: { name: pO.username, avatarUrl: pO.displayAvatarURL({ size: 128, extension: 'png' }) },
+		});
+		const { buildEmbed, formatFooter } = await import('./lib/ui');
+		const embed = buildEmbed({ title: 'X-O-X', description: `Rakipler: <@${playerXId}> (X) vs <@${playerOId}> (O)`, imageUrl: `attachment://${img.fileName}`, footerText: formatFooter(interaction.guild.name), timestamp: true });
+		const { buildGridRows } = await import('./commands/xox');
+		const rows = buildGridRows(state);
+		await interaction.update({ content: '', embeds: [embed], files: [{ attachment: img.buffer, name: img.fileName }], components: rows });
+		return;
+	}
+
+	// XOX: hamleler
+	if (interaction.isButton() && interaction.customId.startsWith('xox:move:')) {
+		if (!interaction.guild || interaction.user.bot) return;
+		const index = Number(interaction.customId.split(':')[2] || '-1');
+		const ctx = getTttContextId(interaction.guild.id, interaction.channelId);
+		const before = getTtt(ctx);
+		if (!before) {
+			await interaction.reply({ content: 'Bu kanalda aktif X-O-X yok. /xox ile başlatın.', ephemeral: true });
+			return;
+		}
+		const res = makeMove(ctx, interaction.user.id, index);
+		if (res.error) {
+			await interaction.reply({ content: res.error, ephemeral: true });
+			return;
+		}
+		const state = res.state!;
+		const pX = await interaction.client.users.fetch(state.playerXId).catch(() => null as any);
+		const pO = state.versusBot && state.playerOId === 'bot' ? null : await interaction.client.users.fetch(state.playerOId).catch(() => null as any);
+		const img = await renderTtt(state, {
+			lastMoveIndex: index,
+			playerX: { name: pX?.username ?? 'Oyuncu X', avatarUrl: pX?.displayAvatarURL({ size: 128, extension: 'png' }) },
+			playerO: state.versusBot && state.playerOId === 'bot'
+				? { name: 'Bot', avatarUrl: interaction.client.user?.displayAvatarURL({ size: 128, extension: 'png' }) ?? undefined }
+				: { name: pO?.username ?? 'Oyuncu O', avatarUrl: pO?.displayAvatarURL({ size: 128, extension: 'png' }) },
+		});
+		const { buildEmbed, formatFooter } = await import('./lib/ui');
+		const title = 'X-O-X';
+		const desc = state.finished ? (state.winner === 'tie' ? '🤝 Berabere.' : (state.winner === 'X' ? `🎉 <@${state.playerXId}> kazandı!` : `🎉 <@${state.playerOId}> kazandı!`)) : `Sıra: ${state.turn}`;
+		const embed = buildEmbed({ title, description: desc, imageUrl: `attachment://${img.fileName}`, footerText: formatFooter(interaction.guild.name), timestamp: true });
+		const { buildGridRows } = await import('./commands/xox');
+		const rows = buildGridRows(state);
+		try {
+			await interaction.update({ embeds: [embed], files: [{ attachment: img.buffer, name: img.fileName }], components: rows });
+		} catch {
+			await interaction.reply({ embeds: [embed], files: [{ attachment: img.buffer, name: img.fileName }], components: rows });
+		}
+		return;
+	}
+
 	if (interaction.isButton() && interaction.customId === 'reg:open') {
 		if (!interaction.guild || interaction.user.bot) return;
 		try {
@@ -228,6 +393,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
 			'seviye-yonetim': 'seviye',
 			'seviye-liderlik': 'seviye',
 			wordle: 'oyun',
+			xox: 'oyun',
+			tkm: 'oyun',
 			'ask-olcer': 'oyun',
 			'owner-send': 'owner',
 			'owner-restart': 'owner',
@@ -973,7 +1140,23 @@ client.on(Events.MessageCreate as any, async (message: any) => {
 			timestamp: true,
 			imageUrl: `attachment://${img.fileName}`,
 		});
-		await message.channel.send({ embeds: [embed], files: [{ attachment: img.buffer, name: img.fileName }] });
+		try {
+			const ch: any = message.channel as any;
+			const msgId = updated.messageId;
+			if (msgId && ch?.messages?.fetch) {
+				const msg = await ch.messages.fetch(msgId).catch(() => null as any);
+				if (msg) {
+					await msg.edit({ embeds: [embed], files: [{ attachment: img.buffer, name: img.fileName }] });
+					// Kullanıcı tahmin mesajını sil
+					try { if ((message as any).deletable) await message.delete(); } catch {}
+					return;
+				}
+			}
+			// İlk kez ise oluştur ve id'yi kaydet
+			const sent = await ch.send({ embeds: [embed], files: [{ attachment: img.buffer, name: img.fileName }] });
+			updated.messageId = (sent as any).id;
+			try { if ((message as any).deletable) await message.delete(); } catch {}
+		} catch {}
 	} catch (e) {
 		console.error('Wordle mesaj işleme hatası:', e);
 	}

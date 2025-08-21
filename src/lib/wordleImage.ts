@@ -12,7 +12,8 @@ export async function renderBoardPng(state: WordleState): Promise<{ buffer: Buff
 	const padX = 40;
 	const padY = 80; // üstte başlık için yer
 	const width = padX * 2 + state.length * tile + (state.length - 1) * gap;
-	const height = padY + padX + state.maxAttempts * tile + (state.maxAttempts - 1) * gap;
+	const brandPad = 26; // altta marka için ekstra yer
+	const height = padY + padX + state.maxAttempts * tile + (state.maxAttempts - 1) * gap + brandPad;
 
 	const canvas = createCanvas(width, height);
 	const ctx = canvas.getContext('2d');
@@ -67,10 +68,15 @@ export async function renderBoardPng(state: WordleState): Promise<{ buffer: Buff
 	ctx.textAlign = 'center';
 	ctx.fillStyle = 'rgba(255,255,255,0.9)';
 	if (state.finished) {
-		ctx.fillText(state.success ? 'Tebrikler!' : `Doğru kelime: ${state.target.toUpperCase()}`, width / 2, height - 24);
+		ctx.fillText(state.success ? 'Tebrikler!' : `Doğru kelime: ${state.target.toUpperCase()}`, width / 2, height - 52);
 	} else {
-		ctx.fillText('Tahmin etmeye devam edin…', width / 2, height - 24);
+		ctx.fillText('Tahmin etmeye devam edin…', width / 2, height - 52);
 	}
+
+	// Marka
+	ctx.font = '600 16px Inter, system-ui, -apple-system, Segoe UI, Arial';
+	ctx.fillStyle = 'rgba(255,255,255,0.55)';
+	ctx.fillText('ZoKo Games', width / 2, height - 18);
 
 	return { buffer: canvas.toBuffer('image/png'), fileName: 'wordle-board.png' };
 }

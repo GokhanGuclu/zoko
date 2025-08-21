@@ -15,6 +15,7 @@ export type WordleState = {
 	rows: GuessRow[];
 	finished: boolean;
 	success: boolean;
+	messageId?: string | null;
 };
 
 const contextIdToState: Map<string, WordleState> = new Map();
@@ -33,6 +34,7 @@ export function startWordle(contextId: string, length: number = 5, maxAttempts: 
 		rows: [],
 		finished: false,
 		success: false,
+		messageId: null,
 	};
 	contextIdToState.set(contextId, state);
 	return state;
@@ -44,6 +46,11 @@ export function getWordle(contextId: string): WordleState | undefined {
 
 export function cancelWordle(contextId: string): boolean {
 	return contextIdToState.delete(contextId);
+}
+
+export function setWordleMessageId(contextId: string, messageId: string): void {
+	const st = contextIdToState.get(contextId);
+	if (st) st.messageId = messageId;
 }
 
 export function guessWord(contextId: string, guessRaw: string): { state?: WordleState; error?: string; row?: GuessRow } {

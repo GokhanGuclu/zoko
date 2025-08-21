@@ -1,4 +1,6 @@
 import { APIEmbedField, EmbedBuilder } from 'discord.js';
+import * as fs from 'fs';
+import * as path from 'path';
 
 // Varsayılan vurgulu renk (marka rengi) ve koyu gri arkaplan uyumlu alternatif
 const DEFAULT_BRAND_COLOR = 0x8b5cf6; // mor ton
@@ -86,6 +88,18 @@ export function formatFooter(guildName: string): string {
 	const timeStr = now.toLocaleString();
 	// Marka ismi buildEmbed içinde otomatik eklenecek; burada sadece bağlam bilgisi veriyoruz
 	return `${guildName} • ${timeStr}`;
+}
+
+// Yerel logoyu embedlerde attachment olarak kullanmak için yardımcı
+export function getBrandLogoAttachment(): { file: { attachment: Buffer; name: string }; url: string } | null {
+    try {
+        const logoPath = path.join(process.cwd(), 'src', 'assets', 'ZoKo_Games.png');
+        const buffer = fs.readFileSync(logoPath);
+        const name = 'ZoKo_Games.png';
+        return { file: { attachment: buffer, name }, url: `attachment://${name}` };
+    } catch {
+        return null;
+    }
 }
 
 

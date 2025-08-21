@@ -31,6 +31,8 @@ import kick from './kick';
 import ban from './ban';
 import clear from './clear';
 import blackjack from './blackjack';
+import xox from './xox';
+import tkm from './tkm';
 
 export const commands = [
     ping,
@@ -66,6 +68,8 @@ export const commands = [
     ban,
     clear,
     blackjack,
+    xox,
+    tkm,
 ];
 
 export type Command = typeof commands[number];
