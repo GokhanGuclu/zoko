@@ -15,6 +15,22 @@ import uyariYonetim from './uyari-yonetim';
 import uyariVer from './uyari-ver';
 import uyariSil from './uyari-sil';
 import uyariListe from './uyari-liste';
+import profil from './profil';
+import avatar from './avatar';
+import sunucuBilgi from './sunucu-bilgi';
+import askOlcer from './ask-olcer';
+import wordle from './wordle';
+import botBilgi from './bot-bilgi';
+import seviyeYonetim from './seviye-yonetim';
+import seviye from './seviye';
+import seviyeLiderlik from './seviye-liderlik';
+import yardim from './yardim';
+import mute from './mute';
+import unmute from './unmute';
+import kick from './kick';
+import ban from './ban';
+import clear from './clear';
+import blackjack from './blackjack';
 
 export const commands = [
     ping,
@@ -34,6 +50,22 @@ export const commands = [
     uyariVer,
     uyariSil,
     uyariListe,
+    profil,
+    avatar,
+    sunucuBilgi,
+    askOlcer,
+    wordle,
+    botBilgi,
+    seviyeYonetim,
+    seviye,
+    seviyeLiderlik,
+    yardim,
+    mute,
+    unmute,
+    kick,
+    ban,
+    clear,
+    blackjack,
 ];
 
 export type Command = typeof commands[number];

@@ -46,8 +46,9 @@ export async function applyNewMemberRolePermissions(
 				await registerChannel.permissionOverwrites.set(overwrites);
 				updated++;
 			} else {
+				// Thread kanalları ve izin nesnesi olmayanlar atlanır
 				if ('permissionOverwrites' in ch) {
-					await (ch as any).permissionOverwrites.edit(newMemberRoleId, {
+					await ch.permissionOverwrites.edit(newMemberRoleId, {
 						ViewChannel: false,
 						SendMessages: false,
 						ReadMessageHistory: false,

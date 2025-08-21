@@ -66,6 +66,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 	const button = new ButtonBuilder()
 		.setCustomId(`ticket:create:${supportRole?.id ?? ''}`)
 		.setLabel('Destek Talebi Oluştur')
+		.setEmoji('🎫')
 		.setStyle(ButtonStyle.Secondary);
 	const row = new ActionRowBuilder<ButtonBuilder>().addComponents(button);
 

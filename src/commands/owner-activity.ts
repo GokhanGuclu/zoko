@@ -1,4 +1,4 @@
-import { ActivityType, ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.js';
+import { ActivityType, ChatInputCommandInteraction, SlashCommandBuilder, PresenceStatusData } from 'discord.js';
 import { config as appConfig } from '../config';
 
 const STATUS_CHOICES = [
@@ -19,13 +19,6 @@ const TYPE_CHOICES = [
 
 type StatusValue = typeof STATUS_CHOICES[number]['value'];
 type TypeValue = typeof TYPE_CHOICES[number]['value'];
-
-function sanitizePresenceStatus(input: string | null | undefined): 'online' | 'idle' | 'dnd' | 'invisible' {
-	const allowed = ['online', 'idle', 'dnd', 'invisible'] as const;
-	if (!input) return 'online';
-	const normalized = String(input);
-	return (allowed as readonly string[]).includes(normalized) ? (normalized as any) : 'online';
-}
 
 const data = new SlashCommandBuilder()
     .setName('owner-activity')
@@ -114,9 +107,11 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
             activity = { type: ActivityType.Competing, name };
         }
 
+        const currentStatus = interaction.client.user?.presence?.status;
+        const normalizedStatus = (status ?? (currentStatus === 'offline' ? 'invisible' : currentStatus) ?? 'online') as PresenceStatusData;
         await interaction.client.user?.setPresence({
             activities: activity ? [activity] : [],
-            status: sanitizePresenceStatus(status ?? interaction.client.user?.presence?.status ?? 'online'),
+            status: normalizedStatus,
         });
         await interaction.reply({ content: 'Etkinlik güncellendi.', ephemeral: true });
         return;
@@ -124,9 +119,11 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
     if (sub === 'clear') {
         const status = (interaction.options.getString('status') as StatusValue | null) ?? null;
+        const currentStatus = interaction.client.user?.presence?.status;
+        const normalizedStatus = (status ?? (currentStatus === 'offline' ? 'invisible' : currentStatus) ?? 'online') as PresenceStatusData;
         await interaction.client.user?.setPresence({
             activities: [],
-            status: sanitizePresenceStatus(status ?? interaction.client.user?.presence?.status ?? 'online'),
+            status: normalizedStatus,
         });
         await interaction.reply({ content: 'Etkinlikler temizlendi.', ephemeral: true });
         return;

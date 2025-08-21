@@ -15,19 +15,19 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 	}
 
 	const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-		new ButtonBuilder().setCustomId('regadmin:setChannel').setLabel('Kayıt Kanalını Ayarla').setStyle(ButtonStyle.Primary),
-		new ButtonBuilder().setCustomId('regadmin:setReviewChannel').setLabel('Kayıt Kontrol Kanalını Ayarla').setStyle(ButtonStyle.Primary),
+		new ButtonBuilder().setCustomId('regadmin:setChannel').setLabel('Kayıt Kanalını Ayarla').setEmoji('📝').setStyle(ButtonStyle.Primary),
+		new ButtonBuilder().setCustomId('regadmin:setReviewChannel').setLabel('Kayıt Kontrol Kanalını Ayarla').setEmoji('🔎').setStyle(ButtonStyle.Primary),
 	);
 
 	const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-		new ButtonBuilder().setCustomId('regadmin:setRole').setLabel('Kayıtlı Rolü Ayarla').setStyle(ButtonStyle.Success),
-		new ButtonBuilder().setCustomId('regadmin:setNewMemberRole').setLabel('Yeni Üye Rolü Ayarla').setStyle(ButtonStyle.Success),
+		new ButtonBuilder().setCustomId('regadmin:setRole').setLabel('Kayıtlı Rolü Ayarla').setEmoji('✅').setStyle(ButtonStyle.Success),
+		new ButtonBuilder().setCustomId('regadmin:setNewMemberRole').setLabel('Yeni Üye Rolü Ayarla').setEmoji('🆕').setStyle(ButtonStyle.Success),
 	);
 
 
 	const row3 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-		new ButtonBuilder().setCustomId('regadmin:modal').setLabel('Modal Yönetimi').setStyle(ButtonStyle.Secondary),
-		new ButtonBuilder().setCustomId('regadmin:reg:info').setLabel('Bilgi').setStyle(ButtonStyle.Secondary),
+		new ButtonBuilder().setCustomId('regadmin:modal').setLabel('Modal Yönetimi').setEmoji('🧩').setStyle(ButtonStyle.Secondary),
+		new ButtonBuilder().setCustomId('regadmin:reg:info').setLabel('Bilgi').setEmoji('ℹ️').setStyle(ButtonStyle.Secondary),
 	);
 
 

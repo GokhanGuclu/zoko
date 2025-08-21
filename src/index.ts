@@ -4,13 +4,17 @@ import { commands } from './commands';
 import { deployCommands } from './lib/deployCommands';
 import { createTicketChannel, extractSupportRoleIdFromTopic } from './lib/tickets';
 import { findFaq } from './lib/faq';
-import { buildEmbed, formatFooter } from './lib/ui';
+import { buildEmbed, formatFooter, setBrandAssets } from './lib/ui';
 import { ensureSchema } from './lib/db';
 import { ensureLogChannel, exportChannelTranscript, postClosureSummary } from './lib/logs';
 import { addFlowEvent, getAndClearFlowEvents } from './lib/flow';
 import { setWarnLogChannel, setWarnAllowedRoles, clearAllWarns, deleteWarn, getWarnById, getWarnSettings } from './lib/warn';
 import { buildRegistrationModal, getRegistrationSettings, listModalFields, saveSubmission, setRegistrationChannel, setRegisteredRole, addModalField, deleteModalField, setNewMemberRole, approveSubmission, rejectSubmission } from './lib/registration';
+import { getLevelSettings, resetAllLevels, setLevelAnnounceChannel, setLevelEnabled } from './lib/levels';
 import { applyNewMemberRolePermissions } from './lib/permissions';
+import { getWordle, guessWord, renderBoard, toContextId, normalizeTR } from './lib/wordle';
+import { renderBoardPng } from './lib/wordleImage';
+import { awardMessageXp } from './lib/levels';
 
 type CommandMap = Collection<string, (interaction: Interaction) => Promise<void>>;
 
@@ -30,19 +34,24 @@ for (const cmd of commands) {
 client.once(Events.ClientReady, async (c) => {
 	console.log(`🤖 Giriş yapıldı: ${c.user.tag}`);
 	try {
+		try {
+			setBrandAssets({
+				name: c.user.username || 'ZoKo',
+				iconUrl: c.user.displayAvatarURL({ size: 256 }),
+				url: 'https://discord.com',
+			});
+		} catch {}
 		await ensureSchema();
 		await deployCommands();
 		console.log(`📝 Slash komutları otomatik dağıtıldı (${commands.length})`);
 		for (let index = 0; index < commands.length; index++) {
 			const command = commands[index];
 			try {
-				// Komutun temel özelliklerini kontrol et
 				if (!command.data || !command.execute) {
 					console.error(`❌ ${command.data?.name || 'İsimsiz komut'} komutunda eksik özellikler var!`);
 					continue;
 				}
 				
-				// Komut adı ve açıklaması kontrol et
 				if (!command.data.name || !command.data.description) {
 					console.error(`❌ ${command.data.name || 'İsimsiz komut'} komutunda isim veya açıklama eksik!`);
 					continue;
@@ -58,7 +67,6 @@ client.once(Events.ClientReady, async (c) => {
 	}
 });
 
-// Yeni üye katılınca kayıt kanalı mesajı ve yeni üye rolü
 client.on(Events.GuildMemberAdd, async (member) => {
 	try {
 		const settings = await getRegistrationSettings(member.guild.id);
@@ -75,7 +83,7 @@ client.on(Events.GuildMemberAdd, async (member) => {
 			footerText: formatFooter(member.guild.name),
 			timestamp: true,
 		});
-		const btn = new ButtonBuilder().setCustomId('reg:open').setLabel('Kayıt Ol').setStyle(ButtonStyle.Primary);
+		const btn = new ButtonBuilder().setCustomId('reg:open').setLabel('Kayıt Ol').setEmoji('📝').setStyle(ButtonStyle.Primary);
 		const row = new ActionRowBuilder<ButtonBuilder>().addComponents(btn);
 		await channel.send({ content: `${member}`, embeds: [embed], components: [row] });
 	} catch (e) {
@@ -84,7 +92,6 @@ client.on(Events.GuildMemberAdd, async (member) => {
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
-	// Slash komutları
 	if (interaction.isChatInputCommand()) {
 		const handler = commandMap.get(interaction.commandName);
 		if (!handler) {
@@ -104,7 +111,80 @@ client.on(Events.InteractionCreate, async (interaction) => {
 		return;
 	}
 
-	// Kayıt butonu
+	if (interaction.isButton() && interaction.customId.startsWith('bj:')) {
+		const channelId = interaction.channelId;
+		const guildId = interaction.guild?.id ?? null;
+		const ctx = `${guildId ?? 'dm'}:${channelId}:${interaction.user.id}`;
+		const action = interaction.customId.split(':')[1];
+		try {
+			const { getBlackjack } = await import('./lib/blackjack');
+			if (!getBlackjack(ctx)) {
+				const { startBlackjack } = await import('./lib/blackjack');
+				startBlackjack(ctx);
+			}
+			if (action === 'hit') {
+				const { hitBlackjack } = await import('./lib/blackjack');
+				hitBlackjack(ctx);
+			}
+			if (action === 'stand') {
+			}
+			if (action === 'reset') {
+				const { resetBlackjack, startBlackjack } = await import('./lib/blackjack');
+				resetBlackjack(ctx);
+				startBlackjack(ctx);
+			}
+			const { renderBlackjack } = await import('./lib/blackjackImage');
+			const state = (await import('./lib/blackjack')).getBlackjack(ctx)!;
+			const img = await renderBlackjack(state, { revealDealerHole: action === 'stand' });
+			const embed = (await import('./lib/ui')).buildEmbed({
+				title: '♠️ Blackjack',
+				description: state.finished ? (state.result === 'player' ? '🎉 Kazandın!' : state.result === 'dealer' ? '❌ Kaybettin.' : '🤝 Berabere.') : 'Kart çekmek için "Çek"e, durmak için "Dur"a bas.',
+				imageUrl: `attachment://${img.fileName}`,
+				footerText: (await import('./lib/ui')).formatFooter(interaction.guild?.name || 'ZoKo'),
+				timestamp: true,
+				color: state.finished ? (state.result === 'player' ? 0x22c55e : state.result === 'dealer' ? 0xef4444 : 0xf59e0b) : 0x111827,
+			});
+			const hitBtn = new ButtonBuilder().setCustomId('bj:hit').setLabel('Çek').setEmoji('🃏').setStyle(ButtonStyle.Primary).setDisabled(state.finished || action === 'stand');
+			const standBtn = new ButtonBuilder().setCustomId('bj:stand').setLabel('Dur').setEmoji('✋').setStyle(ButtonStyle.Secondary).setDisabled(state.finished || action === 'stand');
+			const resetBtn = new ButtonBuilder().setCustomId('bj:reset').setLabel('Yeniden').setEmoji('🔁').setStyle(ButtonStyle.Success).setDisabled(!state.finished);
+			const row = new ActionRowBuilder<ButtonBuilder>().addComponents(hitBtn, standBtn, resetBtn);
+			await interaction.update({ embeds: [embed], files: [{ attachment: img.buffer, name: img.fileName }], components: [row] });
+
+			if (action === 'stand') {
+				try {
+					const { dealerStep, getBlackjack } = await import('./lib/blackjack');
+					while (true) {
+						const step = dealerStep(ctx);
+						const st = getBlackjack(ctx)!;
+						const imgStep = await renderBlackjack(st, { revealDealerHole: true });
+						const ui = await import('./lib/ui');
+						const embedStep = ui.buildEmbed({
+							title: '♠️ Blackjack',
+							description: st.finished ? (st.result === 'player' ? '🎉 Kazandın!' : st.result === 'dealer' ? '❌ Kaybettin.' : '🤝 Berabere.') : 'Krupiye kart çekiyor…',
+							imageUrl: `attachment://${imgStep.fileName}`,
+							footerText: ui.formatFooter(interaction.guild?.name || 'ZoKo'),
+							timestamp: true,
+							color: st.finished ? (st.result === 'player' ? 0x22c55e : st.result === 'dealer' ? 0xef4444 : 0xf59e0b) : 0x111827,
+						});
+						const hitBtnD = new ButtonBuilder().setCustomId('bj:hit').setLabel('Çek').setEmoji('🃏').setStyle(ButtonStyle.Primary).setDisabled(true);
+						const standBtnD = new ButtonBuilder().setCustomId('bj:stand').setLabel('Dur').setEmoji('✋').setStyle(ButtonStyle.Secondary).setDisabled(true);
+						const resetBtnD = new ButtonBuilder().setCustomId('bj:reset').setLabel('Yeniden').setEmoji('🔁').setStyle(ButtonStyle.Success).setDisabled(!st.finished);
+						const rowD = new ActionRowBuilder<ButtonBuilder>().addComponents(hitBtnD, standBtnD, resetBtnD);
+						await interaction.editReply({ embeds: [embedStep], files: [{ attachment: imgStep.buffer, name: imgStep.fileName }], components: [rowD] });
+						if (step.done) break;
+						await new Promise((r) => setTimeout(r, 900));
+					}
+				} catch {}
+			}
+		} catch (e) {
+			console.error('Blackjack buton hatası:', e);
+			if (!interaction.replied && !interaction.deferred) {
+				await interaction.reply({ content: 'İşlem yapılamadı.', ephemeral: true });
+			}
+		}
+		return;
+	}
+
 	if (interaction.isButton() && interaction.customId === 'reg:open') {
 		if (!interaction.guild || interaction.user.bot) return;
 		try {
@@ -123,7 +203,98 @@ client.on(Events.InteractionCreate, async (interaction) => {
 		return;
 	}
 
-	// Kayıt modal submit
+	if (interaction.isButton() && interaction.customId.startsWith('help:cat:')) {
+		const category = interaction.customId.split(':')[2] || 'tum';
+		const commandCategoryByName: Record<string, 'genel' | 'destek' | 'kayit' | 'uyari' | 'seviye' | 'oyun' | 'owner'> = {
+			ping: 'genel',
+			hello: 'genel',
+			profil: 'genel',
+			avatar: 'genel',
+			'sunucu-bilgi': 'genel',
+			'bot-bilgi': 'genel',
+			'destek-olustur': 'destek',
+			'destek-sil': 'destek',
+			'destek-soru-olustur': 'destek',
+			'destek-soru-duzenle': 'destek',
+			'destek-soru-sil': 'destek',
+			'ticket-kapa': 'destek',
+			'kayit-ayar-roller': 'kayit',
+			'kayit-yonetim': 'kayit',
+			'uyari-yonetim': 'uyari',
+			'uyari-ver': 'uyari',
+			'uyari-sil': 'uyari',
+			'uyari-liste': 'uyari',
+			seviye: 'seviye',
+			'seviye-yonetim': 'seviye',
+			'seviye-liderlik': 'seviye',
+			wordle: 'oyun',
+			'ask-olcer': 'oyun',
+			'owner-send': 'owner',
+			'owner-restart': 'owner',
+			'owner-activity': 'owner',
+			'mute': 'uyari',
+			'unmute': 'uyari',
+			'kick': 'uyari',
+			'ban': 'uyari',
+			'clear': 'uyari',
+		};
+
+		const items = commands
+			.filter((c) => category === 'tum' ? true : commandCategoryByName[c.data.name as keyof typeof commandCategoryByName] === category)
+			.map((c) => ({ name: c.data.name, description: c.data.description || '—' }));
+
+		const titleByCat: Record<string, string> = {
+			'tum': 'Tüm Komutlar',
+			'genel': 'Genel',
+			'destek': 'Destek',
+			'kayit': 'Kayıt',
+			'uyari': 'Uyarı',
+			'seviye': 'Seviye',
+			'oyun': 'Oyun',
+			'owner': 'Sahip',
+		};
+
+		const description = items.length
+			? items.map((i) => `• /${i.name} — ${i.description}`).join('\n')
+			: 'Bu kategoride komut yok.';
+
+		const embed = buildEmbed({
+			title: `Yardım • ${titleByCat[category] ?? 'Tümü'}`,
+			description,
+			color: 0x5865f2,
+			footerText: formatFooter(interaction.guild?.name || 'ZoKo'),
+			timestamp: true,
+		});
+
+		const categories = [
+			{ id: 'tum', label: 'Tümü', emoji: '📖' },
+			{ id: 'genel', label: 'Genel', emoji: '🧭' },
+			{ id: 'destek', label: 'Destek', emoji: '🎫' },
+			{ id: 'kayit', label: 'Kayıt', emoji: '📝' },
+			{ id: 'uyari', label: 'Uyarı', emoji: '⚠️' },
+			{ id: 'seviye', label: 'Seviye', emoji: '🏆' },
+			{ id: 'oyun', label: 'Oyun', emoji: '🎮' },
+			{ id: 'owner', label: 'Sahip', emoji: '👑' },
+		];
+		const buttons = categories.map((c) => new ButtonBuilder()
+			.setCustomId(`help:cat:${c.id}`)
+			.setLabel(c.label)
+			.setEmoji(c.emoji)
+			.setStyle((c.id === category ? ButtonStyle.Primary : ButtonStyle.Secondary))
+		);
+		const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(buttons.slice(0, 5));
+		const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(buttons.slice(5));
+
+		try {
+			await interaction.update({ embeds: [embed], components: [row1, row2] });
+		} catch {
+			if (!interaction.replied && !interaction.deferred) {
+				await interaction.reply({ embeds: [embed], components: [row1, row2], ephemeral: true });
+			}
+		}
+		return;
+	}
+
 	if (interaction.isModalSubmit() && interaction.customId === 'reg:submit') {
 		if (!interaction.guild) return;
 		try {
@@ -134,7 +305,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
 			}
 			const submissionId = await saveSubmission(interaction.guild.id, interaction.user.id, payload);
 			const settings = await getRegistrationSettings(interaction.guild.id);
-			// Kullanıcıya bilgilendirme
 			const confirmEmbed = buildEmbed({
 				title: 'Kayıt Başvurusu Alındı',
 				description: 'Başvurun incelemeye gönderildi. Onaylandığında bilgilendirileceksin.',
@@ -143,7 +313,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
 				timestamp: true,
 			});
 			await interaction.reply({ embeds: [confirmEmbed], ephemeral: true });
-			// Yetkililere bildirim
 			if (settings?.reviewChannelId) {
 				const reviewCh = interaction.guild.channels.cache.get(settings.reviewChannelId) as TextChannel | undefined;
 				if (reviewCh) {
@@ -155,8 +324,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
 						footerText: formatFooter(interaction.guild.name),
 						timestamp: true,
 					});
-					const approveBtn = new ButtonBuilder().setCustomId(`regreview:approve:${submissionId}`).setLabel('Onayla').setStyle(ButtonStyle.Success);
-					const rejectBtn = new ButtonBuilder().setCustomId(`regreview:reject:${submissionId}`).setLabel('Reddet').setStyle(ButtonStyle.Danger);
+					const approveBtn = new ButtonBuilder().setCustomId(`regreview:approve:${submissionId}`).setLabel('Onayla').setEmoji('✅').setStyle(ButtonStyle.Success);
+					const rejectBtn = new ButtonBuilder().setCustomId(`regreview:reject:${submissionId}`).setLabel('Reddet').setEmoji('❌').setStyle(ButtonStyle.Danger);
 					const row = new ActionRowBuilder<ButtonBuilder>().addComponents(approveBtn, rejectBtn);
 					await reviewCh.send({ embeds: [reviewEmbed], components: [row] });
 				}
@@ -170,7 +339,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
 		return;
 	}
 
-	// Kayıt inceleme butonları (customId: regreview:approve|reject:SUBMISSION_ID)
 	if (interaction.isButton() && interaction.customId.startsWith('regreview:')) {
 		if (!interaction.guild || interaction.user.bot) return;
 		const [, action, submissionId] = interaction.customId.split(':');
@@ -181,21 +349,18 @@ client.on(Events.InteractionCreate, async (interaction) => {
 				await interaction.reply({ content: 'Onay başarısız veya zaten işlem görmüş.', ephemeral: true });
 				return;
 			}
-			// Roller
 			try {
 				if (settings?.registeredRoleId) {
 					const member = await interaction.guild.members.fetch((interaction.message.embeds[0]?.description || '').match(/<@([0-9]+)>/)?.[1] || '');
 					await member.roles.add(settings.registeredRoleId).catch(() => {});
 					if (settings.newMemberRoleId) await member.roles.remove(settings.newMemberRoleId).catch(() => {});
-					// Kullanıcıya DM
 					await member.send({ embeds: [buildEmbed({ title: 'Kayıt Onaylandı', description: `${interaction.guild.name} sunucusunda kaydın onaylandı. Keyifli sohbetler!`, color: 0x22c55e })] }).catch(() => {});
 				}
 			} catch {}
-			// Mesajı güncelle (butonları kapat)
 			try {
 				const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-					new ButtonBuilder().setCustomId('disabled-approve').setLabel('Onaylandı').setStyle(ButtonStyle.Success).setDisabled(true),
-					new ButtonBuilder().setCustomId('disabled-reject').setLabel('Reddedildi').setStyle(ButtonStyle.Danger).setDisabled(true),
+					new ButtonBuilder().setCustomId('disabled-approve').setLabel('Onaylandı').setEmoji('✅').setStyle(ButtonStyle.Success).setDisabled(true),
+					new ButtonBuilder().setCustomId('disabled-reject').setLabel('Reddedildi').setEmoji('❌').setStyle(ButtonStyle.Danger).setDisabled(true),
 				);
 				await interaction.message.edit({ components: [row] });
 			} catch {}
@@ -208,7 +373,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
 				await interaction.reply({ content: 'Reddetme başarısız veya zaten işlem görmüş.', ephemeral: true });
 				return;
 			}
-			// Kullanıcıya DM bilgi
 			try {
 				const memberId = (interaction.message.embeds[0]?.description || '').match(/<@([0-9]+)>/)?.[1];
 				if (memberId) {
@@ -216,11 +380,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
 					await member.send({ embeds: [buildEmbed({ title: 'Kayıt Reddedildi', description: `${interaction.guild.name} sunucusunda kaydın şimdilik onaylanmadı. Lütfen kayıt kanalındaki yönergeleri takip et.`, color: 0xef4444 })] }).catch(() => {});
 				}
 			} catch {}
-			// Mesajı güncelle (butonları kapat)
 			try {
 				const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-					new ButtonBuilder().setCustomId('disabled-approve').setLabel('Onaylandı').setStyle(ButtonStyle.Success).setDisabled(true),
-					new ButtonBuilder().setCustomId('disabled-reject').setLabel('Reddedildi').setStyle(ButtonStyle.Danger).setDisabled(true),
+					new ButtonBuilder().setCustomId('disabled-approve').setLabel('Onaylandı').setEmoji('✅').setStyle(ButtonStyle.Success).setDisabled(true),
+					new ButtonBuilder().setCustomId('disabled-reject').setLabel('Reddedildi').setEmoji('❌').setStyle(ButtonStyle.Danger).setDisabled(true),
 				);
 				await interaction.message.edit({ components: [row] });
 			} catch {}
@@ -229,19 +392,15 @@ client.on(Events.InteractionCreate, async (interaction) => {
 		}
 	}
 
-	// Destek paneli butonu (customId: ticket:create[:SUPPORT_ROLE_ID])
 	if (interaction.isButton() && interaction.customId.startsWith('ticket:create')) {
 		if (!interaction.guild || !interaction.member || interaction.user.bot) return;
 		try {
 			const parts = interaction.customId.split(':');
 			const supportRoleId = parts[2] || undefined;
 			const channel = await createTicketChannel(interaction.member as any, supportRoleId);
-			// İstek gereği: ephemeral cevap gönderilmesin; bunun yerine kanala karşılayıcı mesaj atılsın
 			await channel.send(`Merhaba ${interaction.user}, talebiniz alındı. Aşağıdaki seçeneklerden ihtiyacınıza uygun olanı seçiniz.`);
 			addFlowEvent(channel.id, 'Ticket açıldı ve kullanıcı bilgilendirildi.');
-			// Olası SSS butonlarını yayınla
 			await (await import('./lib/faq')).sendFaqMenu(channel, interaction.guild.id);
-			// 10 saniye sonra "Anlaşıldı mı?" onayı
 			setTimeout(async () => {
 				try {
 					const confirmEmbed = buildEmbed({
@@ -251,8 +410,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
 						footerText: formatFooter(interaction.guild!.name),
 						timestamp: true,
 					});
-					const yesBtn = new ButtonBuilder().setCustomId('ticket:confirm:yes').setLabel('Evet').setStyle(ButtonStyle.Success);
-					const noBtn = new ButtonBuilder().setCustomId('ticket:confirm:no').setLabel('Hayır').setStyle(ButtonStyle.Danger);
+					const yesBtn = new ButtonBuilder().setCustomId('ticket:confirm:yes').setLabel('Evet').setEmoji('✅').setStyle(ButtonStyle.Success);
+					const noBtn = new ButtonBuilder().setCustomId('ticket:confirm:no').setLabel('Hayır').setEmoji('❌').setStyle(ButtonStyle.Danger);
 					const row = new ActionRowBuilder<ButtonBuilder>().addComponents(yesBtn, noBtn);
 					await (channel as TextChannel).send({ embeds: [confirmEmbed], components: [row] });
 					addFlowEvent((channel as TextChannel).id, 'Kullanıcıya "Anlaşıldı mı?" sorusu yöneltildi.');
@@ -271,7 +430,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
 		}
 	}
 
-	// SSS seçim menüsü (customId: ticket:faq:select)
 	if (interaction.isStringSelectMenu() && interaction.customId === 'ticket:faq:select') {
 		if (!interaction.guild || !interaction.channel || interaction.user.bot) return;
 		const faqId = interaction.values[0];
@@ -294,7 +452,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
 		addFlowEvent(interaction.channel!.id, `SSS yanıtlandı: ${entry.title}`);
 	}
 
-	// Onay butonları (customId: ticket:confirm:yes|no)
 	if (interaction.isButton() && interaction.customId.startsWith('ticket:confirm:')) {
 		if (!interaction.guild || !interaction.channel || interaction.user.bot) return;
 		const choice = interaction.customId.split(':')[2];
@@ -306,8 +463,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
 				footerText: formatFooter(interaction.guild.name),
 				timestamp: true,
 			});
-			const yesBtn = new ButtonBuilder().setCustomId('ticket:live:yes').setLabel('Evet').setStyle(ButtonStyle.Primary);
-			const noBtn = new ButtonBuilder().setCustomId('ticket:live:no').setLabel('Hayır').setStyle(ButtonStyle.Secondary);
+			const yesBtn = new ButtonBuilder().setCustomId('ticket:live:yes').setLabel('Evet').setEmoji('📞').setStyle(ButtonStyle.Primary);
+			const noBtn = new ButtonBuilder().setCustomId('ticket:live:no').setLabel('Hayır').setEmoji('🛑').setStyle(ButtonStyle.Secondary);
 			const row = new ActionRowBuilder<ButtonBuilder>().addComponents(yesBtn, noBtn);
 			await interaction.reply({ embeds: [embed], components: [row] });
 			addFlowEvent(interaction.channel!.id, 'Kullanıcı anlaşılamadı; canlı destek teklifi sunuldu.');
@@ -342,7 +499,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
 		}
 	}
 
-	// Canlı destek akışı (customId: ticket:live:yes|no)
 	if (interaction.isButton() && interaction.customId.startsWith('ticket:live:')) {
 		if (!interaction.guild || !interaction.channel || interaction.user.bot) return;
 		const choice = interaction.customId.split(':')[2];
@@ -447,6 +603,40 @@ client.on(Events.InteractionCreate, async (interaction) => {
 				await interaction.reply({ content: `İzinler uygulandı. Güncellenen: ${result.updated}, atlanan: ${result.skipped}`, ephemeral: true });
 			}
 		}
+	}
+
+	// Seviye yönetimi butonları
+	if (interaction.isButton() && interaction.customId.startsWith('lvladmin:')) {
+		if (!interaction.guild || !interaction.member || interaction.user.bot) return;
+		const action = interaction.customId.split(':')[1];
+		if (action === 'toggle') {
+			const s = await getLevelSettings(interaction.guild.id);
+			await setLevelEnabled(interaction.guild.id, !s.enabled);
+			await interaction.reply({ content: `Seviye sistemi ${!s.enabled ? 'açıldı' : 'kapatıldı'}.`, ephemeral: true });
+			return;
+		}
+		if (action === 'setChannel') {
+			const channelSelect = new ChannelSelectMenuBuilder()
+				.setCustomId('lvladmin:setChannel:select')
+				.setPlaceholder('Seviye mesajlarının gönderileceği kanalı seçin (boş bırakmak için iptal edin)');
+			const row = new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(channelSelect);
+			await interaction.reply({ content: 'Seviye kanalını seçin:', components: [row], ephemeral: true });
+			return;
+		}
+		if (action === 'resetAll') {
+			const affected = await resetAllLevels(interaction.guild.id);
+			await interaction.reply({ content: `Tüm seviyeler sıfırlandı. Etkilenen kayıt: ${affected}`, ephemeral: true });
+			return;
+		}
+	}
+
+	// Seviye kanalı seçimi
+	if (interaction.isChannelSelectMenu && interaction.isChannelSelectMenu() && interaction.customId === 'lvladmin:setChannel:select') {
+		if (!interaction.guild || interaction.user.bot) return;
+		const channelId = interaction.values[0];
+		await setLevelAnnounceChannel(interaction.guild.id, channelId);
+		await interaction.reply({ content: `Seviye bildirim kanalı ayarlandı: <#${channelId}>`, ephemeral: true });
+		return;
 	}
 
 	// Uyarı yönetimi: butonlar
@@ -741,6 +931,53 @@ client.on(Events.InteractionCreate, async (interaction) => {
 	}
 });
 
-client.login(appConfig.discordToken);
+// Wordle: mesajları otomatik tahmin olarak alma
+client.on(Events.MessageCreate as any, async (message: any) => {
+	try {
+		if (!message || message.author?.bot) return;
+		const channelId = message.channel?.id;
+		if (!channelId) return;
+		const contentRaw = String(message.content || '').trim();
 
+		// --- Seviye: mesajdan XP kazanımı ---
+		if (message.guild) {
+			try {
+				const settings = await getLevelSettings(message.guild.id);
+				const result = await awardMessageXp(message.guild.id, message.author.id, contentRaw, settings);
+				if (result.awarded && result.levelUp && !result.silent) {
+					// Duyuru kanalını seç; yoksa konuşulan kanala gönder
+					const channelToAnnounce = settings.announceChannelId
+						? (await message.guild.channels.fetch(settings.announceChannelId).catch(() => null))
+						: message.channel;
+					const targetChannel = (channelToAnnounce && 'send' in channelToAnnounce) ? channelToAnnounce : message.channel;
+					await (targetChannel as any).send({ content: `🎉 Tebrikler <@${message.author.id}>! Seviye ${result.level} oldun.`, allowedMentions: { users: [message.author.id] } });
+				}
+			} catch {}
+		}
+
+		const ctx = toContextId(message.guild?.id ?? null, channelId);
+		const state = getWordle(ctx);
+		if (!state || state.finished) return;
+		if (!contentRaw) return;
+		const content = normalizeTR(contentRaw);
+		// Sadece hedef uzunlukta ve harflerden oluşan girişleri kabul et
+		const trLetters = /^[a-zçğıöşü]+$/i;
+		if (content.length !== state.length || !trLetters.test(content)) return;
+		const { state: updated } = guessWord(ctx, content);
+		if (!updated) return;
+		const img = await renderBoardPng(updated);
+		const embed = buildEmbed({
+			title: `Wordle-TR • ${updated.length} harf • ${updated.maxAttempts} hak` + (updated.finished ? ' • Oyun Bitti' : ''),
+			description: updated.finished ? (updated.success ? '🎉 Tebrikler!' : `❌ Bitti. Doğru kelime: ${updated.target.toUpperCase()}`) : undefined,
+			footerText: formatFooter(message.guild?.name ?? ''),
+			timestamp: true,
+			imageUrl: `attachment://${img.fileName}`,
+		});
+		await message.channel.send({ embeds: [embed], files: [{ attachment: img.buffer, name: img.fileName }] });
+	} catch (e) {
+		console.error('Wordle mesaj işleme hatası:', e);
+	}
+});
+
+client.login(appConfig.discordToken);
 

@@ -16,7 +16,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 	}
 	const channel = interaction.channel as TextChannel;
 	await interaction.reply({ content: 'Ticket kapatma zamanlandı: 1 dakika içinde kanal kapanacak.' });
-	await scheduleChannelClose(channel, interaction.user.id, 10_000, async () => {
+	await scheduleChannelClose(channel, interaction.user.id, 60_000, async () => {
 		const logChannel = await ensureLogChannel(interaction.guild!, channel.parentId ?? null);
 		if (logChannel) {
 			const transcript = await exportChannelTranscript(channel);
