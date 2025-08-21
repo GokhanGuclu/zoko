@@ -195,6 +195,21 @@ export async function ensureSchema(): Promise<void> {
 			INDEX idx_guild_level (guild_id, level)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 	`);
+
+	// Release notları tablosu
+	await p.execute(`
+		CREATE TABLE IF NOT EXISTS release_notes (
+			id VARCHAR(64) PRIMARY KEY,
+			guild_id VARCHAR(32) NULL,
+			version VARCHAR(32) NOT NULL,
+			title VARCHAR(255) NULL,
+			body TEXT NOT NULL,
+			created_by VARCHAR(32) NULL,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			INDEX idx_version (version),
+			INDEX idx_created_at (created_at)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+	`);
 }
 
 

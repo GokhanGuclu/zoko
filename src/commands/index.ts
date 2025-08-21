@@ -33,6 +33,8 @@ import clear from './clear';
 import blackjack from './blackjack';
 import xox from './xox';
 import tkm from './tkm';
+import guncelleme from './guncelleme';
+import guncellemeNotuOlustur from './guncelleme-notu-olustur';
 
 export const commands = [
     ping,
@@ -70,6 +72,8 @@ export const commands = [
     blackjack,
     xox,
     tkm,
+    guncelleme,
+    guncellemeNotuOlustur,
 ];
 
 export type Command = typeof commands[number];
