@@ -8,7 +8,7 @@
 /cache
 /temp
 /uploads
-
+/web
 
 # Ortam dosyaları
 .env
