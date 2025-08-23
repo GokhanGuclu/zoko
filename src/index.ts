@@ -115,6 +115,27 @@ client.on(Events.InteractionCreate, async (interaction) => {
 		return;
 	}
 
+	// Kullanıcı bağlam menüsü komutları (sağ tık → Uygulamalar → Kullanıcı)
+	if (interaction.isUserContextMenuCommand && interaction.isUserContextMenuCommand()) {
+		const name = interaction.commandName;
+		const handler = commandMap.get(name);
+		if (!handler) {
+			await interaction.reply({ content: 'Komut bulunamadı.', ephemeral: true });
+			return;
+		}
+		try {
+			await handler(interaction as any);
+		} catch (error) {
+			console.error('Bağlam menüsü komut hatası:', error);
+			if (interaction.deferred || interaction.replied) {
+				await interaction.followUp({ content: 'Bir hata oluştu.', ephemeral: true });
+			} else {
+				await interaction.reply({ content: 'Bir hata oluştu.', ephemeral: true });
+			}
+		}
+		return;
+	}
+
 	if (interaction.isButton() && interaction.customId.startsWith('bj:')) {
 		const channelId = interaction.channelId;
 		const guildId = interaction.guild?.id ?? null;

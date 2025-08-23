@@ -35,6 +35,8 @@ import xox from './xox';
 import tkm from './tkm';
 import guncelleme from './guncelleme';
 import guncellemeNotuOlustur from './guncelleme-notu-olustur';
+import avatarContext from './avatar-context';
+import profilContext from './profil-context';
 
 export const commands = [
     ping,
@@ -74,6 +76,8 @@ export const commands = [
     tkm,
     guncelleme,
     guncellemeNotuOlustur,
+    avatarContext,
+    profilContext,
 ];
 
 export type Command = typeof commands[number];
