@@ -10,6 +10,7 @@ import {
 	ButtonStyle,
 } from 'discord.js';
 import { buildEmbed, formatFooter } from '../lib/ui';
+import { setSupportSettings } from '../lib/tickets';
 
 const data = new SlashCommandBuilder()
 	.setName('destek-olustur')
@@ -72,6 +73,8 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
 	const content = supportRole ? `<@&${supportRole.id}>` : undefined;
 	await textChannel.send({ content, embeds: [embed], components: [row] });
+	// DB'ye panel kanalı ve destek rolünü kaydet
+	try { await setSupportSettings(interaction.guild.id, textChannel.id, supportRole?.id ?? null); } catch {}
 
 	await interaction.reply({ content: `Destek paneli ${textChannel} kanalına kuruldu.`, ephemeral: true });
 }

@@ -3,18 +3,9 @@ import { addFaq } from '../lib/faq';
 
 const data = new SlashCommandBuilder()
 	.setName('destek-soru-olustur')
-	.setDescription('Soru/Cevap (SSS) maddesi ekler (Yalnızca Yöneticiler).')
+	.setDescription('[DEVRE DISI] SSS yönetimi web paneline taşındı.')
 	.setDMPermission(false)
-	.setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
-	.addStringOption((opt) =>
-		opt.setName('baslik').setDescription('Başlık').setRequired(true)
-	)
-	.addStringOption((opt) =>
-		opt.setName('soru').setDescription('Soru').setRequired(true)
-	)
-	.addStringOption((opt) =>
-		opt.setName('cevap').setDescription('Cevap').setRequired(true)
-	);
+	.setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator);
 
 async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
 	if (!interaction.guild) {
@@ -22,12 +13,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 		return;
 	}
 
-	const title = interaction.options.getString('baslik', true);
-	const question = interaction.options.getString('soru', true);
-	const answer = interaction.options.getString('cevap', true);
-
-	const entry = await addFaq(interaction.guild.id, { title, question, answer });
-	await interaction.reply({ content: `SSS eklendi: ${entry.title} (ID: ${entry.id})`, ephemeral: true });
+	await interaction.reply({ content: 'Bu komut devre dışı. Lütfen SSS yönetimi için web panelini kullanın.', ephemeral: true });
 }
 
 export default { data, execute };

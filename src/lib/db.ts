@@ -210,6 +210,17 @@ export async function ensureSchema(): Promise<void> {
 			INDEX idx_created_at (created_at)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 	`);
+
+	// Destek (ticket) ayarları tablosu
+	await p.execute(`
+		CREATE TABLE IF NOT EXISTS support_settings (
+			guild_id VARCHAR(32) PRIMARY KEY,
+			panel_channel_id VARCHAR(32) NULL,
+			support_role_id VARCHAR(32) NULL,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+	`);
 }
 
 

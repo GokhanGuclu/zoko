@@ -8,6 +8,7 @@ import {
 	TextChannel,
 } from 'discord.js';
 import { config as appConfig } from '../config';
+import { getPool } from './db';
 import { buildEmbed, formatFooter } from './ui';
 
 const TICKET_TOPIC_PREFIX = 'TICKET_USER:';
@@ -134,6 +135,26 @@ export async function scheduleChannelClose(
 			// Kanal silinemeyebilir (yetki/değişiklik); yoksay
 		}
 	}, delayMs);
+}
+
+// --- Support settings persistence ---
+export async function setSupportSettings(guildId: string, panelChannelId: string | null, supportRoleId: string | null): Promise<void> {
+    const p = getPool();
+    if (!p) return;
+    await p.execute(
+        `INSERT INTO support_settings (guild_id, panel_channel_id, support_role_id)
+         VALUES (?, ?, ?)
+         ON DUPLICATE KEY UPDATE panel_channel_id = VALUES(panel_channel_id), support_role_id = VALUES(support_role_id)`,
+        [guildId, panelChannelId, supportRoleId]
+    );
+}
+
+export async function getSupportSettings(guildId: string): Promise<{ panelChannelId: string | null, supportRoleId: string | null }> {
+    const p = getPool();
+    if (!p) return { panelChannelId: null, supportRoleId: null };
+    const [rows] = (await p.execute('SELECT panel_channel_id, support_role_id FROM support_settings WHERE guild_id = ? LIMIT 1', [guildId])) as unknown as [any[]];
+    if (!rows || rows.length === 0) return { panelChannelId: null, supportRoleId: null };
+    return { panelChannelId: rows[0].panel_channel_id ?? null, supportRoleId: rows[0].support_role_id ?? null };
 }
 
 
